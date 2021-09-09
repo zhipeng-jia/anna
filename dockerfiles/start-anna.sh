@@ -32,19 +32,27 @@ gen_yml_list() {
   echo -e "$RESULT"
 }
 
+resolve_ips() {
+  IPS=$(dig +short $1 | tr '\n' ' ' | awk '{$1=$1};1')
+  echo -e "$IPS"
+}
+
 cd $HYDRO_HOME/anna
 mkdir -p conf
 
 # Check if the context that we are running in is EC2 or not. If it is, we
 # determine separate private and public IP addresses. Otherwise, we use the
 # same one for both.
-IS_EC2=`curl -s http://169.254.169.254`
+# IS_EC2=`curl -s http://169.254.169.254`
 PRIVATE_IP=`ifconfig eth0 | grep 'inet' | grep -v inet6 | sed -e 's/^[ \t]*//' | cut -d' ' -f2`
-if [[ ! -z "$IS_EC2" ]]; then
-  PUBLIC_IP=`curl http://169.254.169.254/latest/meta-data/public-ipv4`
-else
-  PUBLIC_IP=$PRIVATE_IP
-fi
+echo "eth0 ip: ${PRIVATE_IP}"
+# if [[ ! -z "$IS_EC2" ]]; then
+#   PUBLIC_IP=`curl http://169.254.169.254/latest/meta-data/public-ipv4`
+# else
+#   PUBLIC_IP=$PRIVATE_IP
+# fi
+
+PUBLIC_IP=$PRIVATE_IP
 
 # Download latest version of the code from relevant repository & branch -- if
 # none are specified, we use hydro-project/anna by default.
@@ -71,14 +79,25 @@ cd build && make -j2 && cd ..
 
 # Do not start the server until conf/anna-config.yml has been copied onto this
 # pod -- if we start earlier, we won't now how to configure the system.
-while [[ ! -f "conf/anna-config.yml" ]]; do
-  continue
-done
+# while [[ ! -f "conf/anna-config.yml" ]]; do
+#   continue
+# done
+
+cp conf/anna-config-template.yml conf/anna-config.yml
+
+MON_IPS=$(resolve_ips "$MON_DNS")
+ROUTING_IPS=$(resolve_ips "$ROUTING_DNS")
+SEED_IP=$(dig +short "$ROUTING_DNS" | head -n1)
+
+echo "monitor ips: $MON_IPS"
+echo "routing ips: $ROUTING_IPS"
+echo "seed ip: $SEED_IP"
 
 # Tailor the config file to have process specific information.
 if [ "$1" = "mn" ]; then
   echo -e "monitoring:" >> conf/anna-config.yml
-  echo -e "    mgmt_ip: $MGMT_IP" >> conf/anna-config.yml
+  # echo -e "    mgmt_ip: $MGMT_IP" >> conf/anna-config.yml
+  echo -e "    mgmt_ip: \"NULL\"" >> conf/anna-config.yml
   echo -e "    ip: $PRIVATE_IP" >> conf/anna-config.yml
 
   ./build/target/kvs/anna-monitor
@@ -109,7 +128,8 @@ else
   echo -e "    seed_ip: $SEED_IP" >> conf/anna-config.yml
   echo -e "    public_ip: $PUBLIC_IP" >> conf/anna-config.yml
   echo -e "    private_ip: $PRIVATE_IP" >> conf/anna-config.yml
-  echo -e "    mgmt_ip: $MGMT_IP" >> conf/anna-config.yml
+  echo -e "    mgmt_ip: \"NULL\"" >> conf/anna-config.yml
+  # echo -e "    mgmt_ip: $MGMT_IP" >> conf/anna-config.yml
 
   LST=$(gen_yml_list "$MON_IPS")
   echo -e "    monitoring:" >> conf/anna-config.yml

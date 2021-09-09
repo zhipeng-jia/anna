@@ -12,13 +12,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-FROM hydroproject/base:latest
+FROM zjia/cloudburst:base
 
 MAINTAINER Vikram Sreekanti <vsreekanti@gmail..com> version: 0.1
 
-ARG repo_org=hydro-project
-ARG source_branch=master
+ARG repo_org=zhipeng-jia
+ARG source_branch=test
 ARG build_branch=docker-build
+
+ARG NUM_JOBS=16
 
 USER root
 
@@ -27,7 +29,7 @@ USER root
 WORKDIR $HYDRO_HOME/anna
 RUN git remote remove origin && git remote add origin https://github.com/$repo_org/anna
 RUN git fetch origin && git checkout -b $build_branch origin/$source_branch
-RUN bash scripts/build.sh -j4 -bRelease
+RUN bash scripts/build.sh -j $NUM_JOBS -bRelease
 WORKDIR /
 
 COPY start-anna.sh /
